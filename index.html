@@ -1,0 +1,919 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Block Island</title>
+<style>
+/* Layout: full-screen 3D view; frosted-glass HUD floats on top (info + quests top, hotbar bottom). */
+:root{
+  --sea:#0f2a3d;
+  --glass:rgba(14,30,44,.58);
+  --glass-line:rgba(255,255,255,.18);
+  --ink:#f2f7fb;
+  --ink-soft:#b9cad8;
+  --grass:#7ccf55;
+  --sand:#f0d98a;
+  --font-display:'Silkscreen','Courier New',monospace;
+  --font-body:'Space Grotesk',system-ui,-apple-system,'Segoe UI',sans-serif;
+  color-scheme:dark;
+}
+html,body{height:100%}
+body{margin:0;overflow:hidden;background:var(--sea);color:var(--ink);font-family:var(--font-body);font-size:15px;-webkit-user-select:none;user-select:none}
+#view{position:fixed;inset:0;width:100%;height:100%;display:block;outline:none}
+.panel{background:var(--glass);border:1px solid var(--glass-line);border-radius:14px;backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);padding:12px 14px}
+#top{position:fixed;left:16px;right:16px;top:calc(12px + env(safe-area-inset-top,0px));display:flex;gap:12px;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;pointer-events:none}
+#top .panel{pointer-events:auto}
+#info{display:flex;align-items:center;gap:14px}
+#info h1{margin:0;font-family:var(--font-display);font-size:20px;letter-spacing:.04em;color:var(--sand)}
+#info p{margin:0;color:var(--ink-soft);font-size:13px;font-variant-numeric:tabular-nums}
+button{font:inherit;color:var(--ink);cursor:pointer}
+.btn{background:rgba(255,255,255,.12);border:1px solid var(--glass-line);border-radius:10px;padding:7px 12px}
+.btn:hover{background:rgba(255,255,255,.2)}
+.btn:focus-visible{outline:2px solid var(--grass);outline-offset:2px}
+.btn.primary{background:var(--grass);border-color:transparent;color:#10260a;font-weight:700;padding:10px 20px;font-size:16px}
+.btn.primary:hover{background:#93e06b}
+#quests{min-width:220px;max-width:300px}
+#quests h2{margin:0 0 6px;font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-soft)}
+#quests ul{list-style:none;margin:0;padding:0;display:grid;gap:5px}
+#quests li{display:flex;gap:8px;align-items:flex-start;font-size:13.5px;line-height:1.3}
+#quests li .box{flex:none;width:16px;height:16px;border:2px solid var(--ink-soft);border-radius:4px;display:grid;place-items:center;font-size:12px;line-height:1;color:#10260a;margin-top:1px}
+#quests li.done{color:var(--ink-soft);text-decoration:line-through}
+#quests li.done .box{background:var(--grass);border-color:var(--grass)}
+#cross{position:fixed;left:50%;top:50%;width:22px;height:22px;transform:translate(-50%,-50%);pointer-events:none}
+#cross::before,#cross::after{content:"";position:absolute;background:rgba(255,255,255,.9);box-shadow:0 0 0 1px rgba(0,0,0,.45)}
+#cross::before{left:10px;top:2px;width:2px;height:18px}
+#cross::after{left:2px;top:10px;width:18px;height:2px}
+#target{position:fixed;left:50%;top:calc(50% + 26px);transform:translateX(-50%);padding:4px 10px;border-radius:8px;background:var(--glass);border:1px solid var(--glass-line);font-size:13px;pointer-events:none}
+#toast{position:fixed;left:50%;bottom:calc(104px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);max-width:calc(100% - 32px);padding:8px 16px;border-radius:999px;background:var(--glass);border:1px solid var(--glass-line);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);font-size:14px;text-align:center;pointer-events:none;transition:opacity .25s}
+#toast.off{opacity:0}
+#hotbar{position:fixed;left:50%;bottom:calc(14px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);display:flex;gap:6px;padding:8px;border-radius:16px;background:var(--glass);border:1px solid var(--glass-line);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)}
+.slot{position:relative;width:54px;padding:6px 0 5px;display:flex;flex-direction:column;align-items:center;gap:3px;border-radius:10px;border:2px solid transparent;cursor:pointer}
+.slot.sel{border-color:var(--sand);background:rgba(255,255,255,.12)}
+.slot img{width:32px;height:32px;image-rendering:pixelated;border-radius:3px;box-shadow:0 0 0 1px rgba(0,0,0,.5)}
+.slot .k{position:absolute;left:6px;top:3px;font-size:10px;color:var(--ink-soft)}
+.slot .n{position:absolute;right:6px;top:3px;font-size:12px;font-variant-numeric:tabular-nums}
+.slot .w{font-size:11px;color:var(--ink-soft)}
+.slot.empty img{opacity:.35}
+#overlay{position:fixed;inset:0;z-index:20;display:grid;place-items:center;padding:16px;background:rgba(8,20,32,.55);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+.card{width:100%;max-width:460px;max-height:100%;overflow:auto;padding:24px;border-radius:20px;background:rgba(14,30,44,.82);border:1px solid var(--glass-line)}
+.card h1{margin:0 0 4px;font-family:var(--font-display);font-size:34px;letter-spacing:.04em;color:var(--sand);text-wrap:balance}
+.card .lead{margin:0 0 16px;color:var(--ink-soft);line-height:1.45}
+.keys{display:grid;grid-template-columns:auto 1fr;gap:8px 14px;margin:0 0 18px;padding:0;align-items:center}
+.keys dt{justify-self:start;display:flex;gap:4px;flex-wrap:wrap}
+.keys dd{margin:0;color:var(--ink)}
+kbd{font-family:var(--font-body);font-size:12px;font-weight:700;padding:2px 7px;border-radius:6px;background:rgba(255,255,255,.14);border:1px solid var(--glass-line);border-bottom-width:3px}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.hint{margin:14px 0 0;font-size:12px;color:var(--ink-soft)}
+.quality{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:0 0 6px}
+.qlabel{font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-soft);margin-right:4px}
+.btn.q{padding:5px 10px;font-size:13px}
+.btn.q.on{background:var(--grass);border-color:transparent;color:#10260a;font-weight:700}
+.qstatus{margin:0 0 16px;font-size:13px;color:var(--ink-soft);min-height:1.3em;font-variant-numeric:tabular-nums}
+.btn:disabled{opacity:.5;cursor:default}
+#overlay.calibrating{backdrop-filter:none;-webkit-backdrop-filter:none;background:rgba(8,20,32,.72)}
+@media (max-width:560px){#quests{max-width:none;flex:1 1 100%}.slot{width:40px}#hotbar{gap:3px}.slot .w{display:none}}
+@media (prefers-reduced-motion:reduce){#toast{transition:none}}
+</style>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&family=Space+Grotesk:wght@400;500;700&display=swap">
+
+<canvas id="view" tabindex="0"></canvas>
+<div id="cross"></div>
+<div id="target" hidden></div>
+
+<div id="top">
+  <div class="panel" id="info">
+    <div>
+      <h1>Block Island</h1>
+      <p id="count"></p>
+    </div>
+    <button class="btn" id="menuBtn" type="button">Menu</button>
+  </div>
+  <div class="panel" id="quests">
+    <h2>Quests</h2>
+    <ul id="questList"></ul>
+  </div>
+</div>
+
+<div id="toast" class="off"></div>
+<div id="hotbar"></div>
+
+<div id="overlay">
+  <div class="card">
+    <h1>Block Island</h1>
+    <p class="lead" id="lead">You wake up on an island. The game checks your computer and builds an island that runs smoothly on it. Climb the hills, walk through the forest, plant saplings, mine blocks and build something new.</p>
+    <dl class="keys">
+      <dt><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></dt><dd>Walk</dd>
+      <dt><kbd>Space</kbd></dt><dd>Jump</dd>
+      <dt><kbd>Mouse</kbd></dt><dd>Look around</dd>
+      <dt><kbd>Hold left click</kbd></dt><dd>Mine (dig or chop) a block</dd>
+      <dt><kbd>Right click</kbd></dt><dd>Place a block</dd>
+      <dt><kbd>1</kbd>–<kbd>8</kbd></dt><dd>Choose a block (or use the mouse wheel)</dd>
+      <dt><kbd>Esc</kbd></dt><dd>Pause the game</dd>
+    </dl>
+    <div class="quality" role="group" aria-label="Quality">
+      <span class="qlabel">Quality</span>
+      <button class="btn q on" data-q="auto" type="button">Auto</button>
+      <button class="btn q" data-q="low" type="button">Low</button>
+      <button class="btn q" data-q="medium" type="button">Medium</button>
+      <button class="btn q" data-q="high" type="button">High</button>
+      <button class="btn q" data-q="ultra" type="button">Ultra</button>
+    </div>
+    <p class="qstatus" id="qstatus">Checking your computer…</p>
+    <div class="row">
+      <button class="btn primary" id="playBtn" disabled type="button">Play</button>
+      <button class="btn" id="newBtn" type="button">New island</button>
+    </div>
+    <p class="hint">Be careful: if you mine the block under your feet, you fall into the water. If the game feels slow, choose a lower Quality. Best on a computer with a mouse.</p>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function(){
+'use strict';
+
+var TYPES=['grass','dirt','sand','stone','wood','log','leaves','sapling'];
+var NAMES={grass:'Grass',dirt:'Dirt',sand:'Sand',stone:'Stone',wood:'Planks',log:'Log',leaves:'Leaves',sapling:'Sapling',poppy:'Red flower',daisy:'White flower',tallgrass:'Tall grass'};
+var $=function(id){return document.getElementById(id);};
+/* Quality tiers: how big the island is and how much grows on it. */
+var TIERS={
+  low:{name:'Low',cells:512,hills:512,trees:14,plant:0.5,ratio:1},
+  medium:{name:'Medium',cells:1024,hills:1024,trees:28,plant:0.8,ratio:1.25},
+  high:{name:'High',cells:2048,hills:2048,trees:46,plant:1,ratio:2},
+  ultra:{name:'Ultra',cells:3072,hills:3072,trees:64,plant:1.1,ratio:2}
+};
+var ORDER=['low','medium','high','ultra'];
+var Q=TIERS.high,tierMode='auto',calib=null,warned=false,slowCount=0,slowAcc=0,slowN=0;
+
+if(typeof THREE==='undefined'){
+  $('lead').textContent='The 3D engine could not load. Check the internet connection and reload the page.';
+  $('playBtn').hidden=true;$('newBtn').hidden=true;
+  return;
+}
+
+/* ---------- pixel textures drawn in code ---------- */
+function rnd(a,b){return a+Math.random()*(b-a);}
+function c255(n){return Math.max(0,Math.min(255,Math.round(n)));}
+function paint(fn){
+  var c=document.createElement('canvas');c.width=16;c.height=16;
+  var g=c.getContext('2d');fn(g);
+  var t=new THREE.CanvasTexture(c);
+  t.magFilter=THREE.NearestFilter;t.minFilter=THREE.NearestFilter;
+  return {tex:t,url:c.toDataURL()};
+}
+function noise(g,b,v){
+  for(var x=0;x<16;x++)for(var y=0;y<16;y++){
+    var d=rnd(-v,v);
+    g.fillStyle='rgb('+c255(b[0]+d)+','+c255(b[1]+d)+','+c255(b[2]+d)+')';
+    g.fillRect(x,y,1,1);
+  }
+}
+function speck(g,col,n){
+  g.fillStyle='rgb('+col[0]+','+col[1]+','+col[2]+')';
+  for(var i=0;i<n;i++)g.fillRect(Math.floor(rnd(0,16)),Math.floor(rnd(0,16)),1,1);
+}
+var T={};
+T.dirt=paint(function(g){noise(g,[134,96,67],22);speck(g,[96,66,44],16);});
+T.grassTop=paint(function(g){noise(g,[100,170,62],26);speck(g,[70,140,44],10);});
+T.grassSide=paint(function(g){
+  noise(g,[134,96,67],22);
+  for(var x=0;x<16;x++){
+    var h=3+(Math.random()<.5?1:0)+(Math.random()<.2?1:0);
+    for(var y=0;y<h;y++){var d=rnd(-20,20);g.fillStyle='rgb('+c255(100+d)+','+c255(170+d)+','+c255(62+d)+')';g.fillRect(x,y,1,1);}
+  }
+});
+T.sand=paint(function(g){noise(g,[224,208,138],12);speck(g,[198,182,114],10);});
+T.stone=paint(function(g){noise(g,[130,133,138],16);speck(g,[92,95,102],18);speck(g,[160,163,168],10);});
+T.wood=paint(function(g){
+  noise(g,[182,134,78],10);
+  g.fillStyle='rgb(126,86,44)';
+  for(var b=0;b<4;b++){
+    g.fillRect(0,b*4+3,16,1);
+    g.fillRect((b*5+3)%16,b*4,1,3);
+  }
+});
+function px(g,x,y,w,h,c){g.fillStyle=c;g.fillRect(x,y,w,h);}
+T.log=paint(function(g){
+  noise(g,[106,80,50],10);
+  g.fillStyle='rgb(74,54,32)';
+  for(var i=0;i<5;i++){g.fillRect(Math.floor(rnd(0,16)),Math.floor(rnd(0,6)),1,Math.floor(rnd(6,14)));}
+});
+T.logTop=paint(function(g){
+  noise(g,[178,140,86],8);
+  g.strokeStyle='rgb(138,100,58)';g.lineWidth=1;
+  g.strokeRect(1.5,1.5,13,13);g.strokeRect(4.5,4.5,7,7);
+  g.fillStyle='rgb(138,100,58)';g.fillRect(7,7,2,2);
+});
+T.leaves=paint(function(g){
+  noise(g,[52,128,46],24);
+  for(var i=0;i<36;i++)g.clearRect(Math.floor(rnd(0,16)),Math.floor(rnd(0,16)),1,1);
+});
+T.sapling=paint(function(g){
+  px(g,7,8,2,8,'rgb(112,82,46)');
+  px(g,5,5,3,3,'rgb(60,150,50)');px(g,9,4,3,3,'rgb(76,170,58)');
+  px(g,6,1,4,4,'rgb(70,160,54)');px(g,4,9,3,2,'rgb(60,150,50)');px(g,9,9,3,2,'rgb(76,170,58)');
+});
+T.poppy=paint(function(g){
+  px(g,7,7,2,9,'rgb(58,140,44)');px(g,5,11,2,2,'rgb(58,140,44)');px(g,9,10,2,2,'rgb(58,140,44)');
+  px(g,5,3,6,5,'rgb(206,44,44)');px(g,6,2,4,1,'rgb(206,44,44)');px(g,7,4,2,2,'rgb(48,24,24)');
+});
+T.daisy=paint(function(g){
+  px(g,7,7,2,9,'rgb(58,140,44)');px(g,5,11,2,2,'rgb(58,140,44)');px(g,9,10,2,2,'rgb(58,140,44)');
+  px(g,5,3,6,5,'rgb(244,244,236)');px(g,6,2,4,1,'rgb(244,244,236)');px(g,7,4,2,2,'rgb(240,190,40)');
+});
+T.tallgrass=paint(function(g){
+  for(var x=1;x<16;x+=2){var h=Math.floor(rnd(5,13)),d=rnd(-20,20);px(g,x,16-h,1,h,'rgb('+c255(80+d)+','+c255(160+d)+','+c255(60+d)+')');}
+});
+function lam(t){return new THREE.MeshLambertMaterial({map:t.tex});}
+function plantMat(t){return new THREE.MeshLambertMaterial({map:t.tex,alphaTest:0.5,side:THREE.DoubleSide});}
+var MAT={dirt:lam(T.dirt),sand:lam(T.sand),stone:lam(T.stone),wood:lam(T.wood)};
+MAT.grass=[lam(T.grassSide),lam(T.grassSide),lam(T.grassTop),lam(T.dirt),lam(T.grassSide),lam(T.grassSide)];
+MAT.log=[lam(T.log),lam(T.log),lam(T.logTop),lam(T.logTop),lam(T.log),lam(T.log)];
+MAT.leaves=new THREE.MeshLambertMaterial({map:T.leaves.tex,alphaTest:0.5});
+MAT.sapling=plantMat(T.sapling);MAT.poppy=plantMat(T.poppy);MAT.daisy=plantMat(T.daisy);MAT.tallgrass=plantMat(T.tallgrass);
+var ICON={grass:T.grassSide.url,dirt:T.dirt.url,sand:T.sand.url,stone:T.stone.url,wood:T.wood.url,log:T.log.url,leaves:T.leaves.url,sapling:T.sapling.url};
+
+/* ---------- scene ---------- */
+var canvas=$('view');
+var renderer=new THREE.WebGLRenderer({canvas:canvas,antialias:true});
+renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,2));
+var scene=new THREE.Scene();
+scene.background=new THREE.Color(0x8ec9f0);
+scene.fog=new THREE.Fog(0x9bd3f5,28,95);
+var camera=new THREE.PerspectiveCamera(72,1,0.05,200);
+scene.add(new THREE.AmbientLight(0xffffff,0.72));
+var sun=new THREE.DirectionalLight(0xffffff,0.62);
+sun.position.set(0.6,1,0.35);
+scene.add(sun);
+
+var water=new THREE.Mesh(new THREE.PlaneGeometry(500,500),new THREE.MeshLambertMaterial({color:0x2f84c8,transparent:true,opacity:0.88}));
+water.rotation.x=-Math.PI/2;water.position.y=-0.15;
+scene.add(water);
+
+var clouds=[];
+for(var ci=0;ci<14;ci++){
+  var cm=new THREE.Mesh(new THREE.BoxGeometry(rnd(4,9),1,rnd(3,6)),new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:0.9,fog:false}));
+  cm.position.set(rnd(-70,70),rnd(16,24),rnd(-70,70));
+  scene.add(cm);clouds.push(cm);
+}
+
+var geo=new THREE.BoxGeometry(1,1,1);
+var crossGeo=(function(){
+  var g=new THREE.BufferGeometry(),a=0.5,top=0.4,bot=-0.5;
+  g.setAttribute('position',new THREE.Float32BufferAttribute([-a,bot,-a, a,bot,a, a,top,a, -a,top,-a, -a,bot,a, a,bot,-a, a,top,-a, -a,top,a],3));
+  g.setAttribute('uv',new THREE.Float32BufferAttribute([0,0,1,0,1,1,0,1, 0,0,1,0,1,1,0,1],2));
+  g.setIndex([0,1,2,0,2,3,4,5,6,4,6,7]);
+  g.computeVertexNormals();
+  return g;
+})();
+var outline=new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(1.004,1.004,1.004)),new THREE.LineBasicMaterial({color:0x000000}));
+outline.visible=false;scene.add(outline);
+
+/* ---------- world ---------- */
+var world=new Map(),saplings=new Set(),nBlocks=0;
+function key(x,y,z){return x+','+y+','+z;}
+/* A block hides when all 6 neighbours are solid, so thousands of buried blocks cost nothing to draw. */
+function opaque(x,y,z){
+  if(y<0)return true;
+  var m=world.get(key(x,y,z));
+  return !!m&&!m.userData.plant&&m.userData.t!=='leaves';
+}
+function filled(x,y,z){
+  if(y<0)return true;
+  var m=world.get(key(x,y,z));
+  return !!m&&!m.userData.plant;
+}
+function updVis(x,y,z){
+  var m=world.get(key(x,y,z));
+  if(!m||m.userData.plant)return;
+  var f=m.userData.t==='leaves'?filled:opaque;
+  m.visible=!(f(x+1,y,z)&&f(x-1,y,z)&&f(x,y+1,z)&&f(x,y-1,z)&&f(x,y,z+1)&&f(x,y,z-1));
+}
+function updAround(x,y,z){
+  updVis(x,y,z);updVis(x+1,y,z);updVis(x-1,y,z);updVis(x,y+1,z);updVis(x,y-1,z);updVis(x,y,z+1);updVis(x,y,z-1);
+}
+function addBlock(x,y,z,t){
+  var m=new THREE.Mesh(geo,MAT[t]);
+  m.position.set(x,y,z);
+  m.userData={x:x,y:y,z:z,t:t};
+  m.matrixAutoUpdate=false;m.updateMatrix();
+  scene.add(m);world.set(key(x,y,z),m);nBlocks++;
+  updAround(x,y,z);
+}
+/* Plants (saplings, flowers, tall grass) are not solid: you walk through them. */
+function addPlant(x,y,z,t,delay,byPlayer){
+  var m=new THREE.Mesh(crossGeo,MAT[t]);
+  var wob=t==='sapling'?0:0.18;
+  m.position.set(x+rnd(-wob,wob),y,z+rnd(-wob,wob));
+  m.userData={x:x,y:y,z:z,t:t,plant:true,grow:delay||0,player:!!byPlayer};
+  m.matrixAutoUpdate=false;m.updateMatrix();
+  scene.add(m);world.set(key(x,y,z),m);
+  if(t==='sapling')saplings.add(m);
+  updAround(x,y,z);
+}
+function removeBlock(x,y,z){
+  var m=world.get(key(x,y,z));
+  if(!m)return null;
+  scene.remove(m);world.delete(key(x,y,z));
+  if(m.userData.plant)saplings.delete(m);else nBlocks--;
+  updAround(x,y,z);
+  var up=world.get(key(x,y+1,z));
+  if(up&&up.userData.plant)removeBlock(x,y+1,z);
+  return m.userData.t;
+}
+function put(x,y,z,t){if(!world.has(key(x,y,z)))addBlock(x,y,z,t);}
+/* A tree: a log trunk with leaves in four layers (wide, wide, small, plus-shaped). */
+function buildTree(x,gy,z,th){
+  for(var i=1;i<=th;i++)put(x,gy+i,z,'log');
+  var ty=gy+th;
+  for(var dy=-1;dy<=2;dy++)for(var dx=-2;dx<=2;dx++)for(var dz=-2;dz<=2;dz++){
+    var ax=Math.abs(dx),az=Math.abs(dz);
+    if(dy<=0){if(ax===2&&az===2)continue;}
+    else if(dy===1){if(ax>1||az>1)continue;}
+    else{if(ax+az>1)continue;}
+    put(x+dx,ty+dy,z+dz,'leaves');
+  }
+}
+function growSaplings(dt){
+  saplings.forEach(function(m){
+    var u=m.userData;
+    u.grow-=dt;
+    if(u.grow>0)return;
+    var th=4+Math.floor(Math.random()*2),free=true;
+    for(var i=1;i<th;i++)if(world.has(key(u.x,u.y+i,u.z)))free=false;
+    if(!free){u.grow=10;return;}
+    var mine=u.player;
+    removeBlock(u.x,u.y,u.z);
+    buildTree(u.x,u.y-1,u.z,th);
+    if(mine){grown=true;toast('Your sapling grew into a tree!');refresh();}
+  });
+}
+
+var inv={},mined=new Set(),placed=0,towerDone=false,grown=false,questDone={};
+var DIRS=[[1,0],[-1,0],[0,1],[0,-1]];
+function shuffle(a){for(var i=a.length-1;i>0;i--){var j=Math.floor(Math.random()*(i+1));var t=a[i];a[i]=a[j];a[j]=t;}return a;}
+
+/* The island: 64 blocks grown at random, one next to another. */
+function newIsland(){
+  world.forEach(function(m){scene.remove(m);});
+  world.clear();saplings.clear();nBlocks=0;
+  warned=false;slowCount=0;slowAcc=0;slowN=0;
+  for(var pi=0;pi<parts.length;pi++)scene.remove(parts[pi]);
+  parts.length=0;mining.key='';mining.p=0;crack.visible=false;
+  var cells=[[0,0]],seen={'0,0':1};
+  while(cells.length<Q.cells){
+    var c=cells[Math.floor(Math.random()*cells.length)];
+    var d=DIRS[Math.floor(Math.random()*4)];
+    var nx=c[0]+d[0],nz=c[1]+d[1],k=nx+','+nz;
+    if(!seen[k]){seen[k]=1;cells.push([nx,nz]);}
+  }
+  var list=['dirt','sand','stone'];
+  var weights=['grass','grass','grass','grass','grass','sand','sand','sand','dirt','dirt','stone','stone'];
+  while(list.length<Q.cells-1)list.push(weights[Math.floor(Math.random()*weights.length)]);
+  shuffle(list);
+  var ht={};
+  cells.forEach(function(c,i){addBlock(c[0],0,c[1],i===0?'grass':list[i-1]);ht[c[0]+','+c[1]]=1;});
+  /* Terrain: smooth hills. Heights come from soft round bumps, so every slope rises gradually. */
+  var idx={};
+  cells.forEach(function(c,i){idx[c[0]+','+c[1]]=i;});
+  var nb=cells.map(function(c){
+    var out=[];
+    for(var di=0;di<4;di++){
+      var j=idx[(c[0]+DIRS[di][0])+','+(c[1]+DIRS[di][1])];
+      if(j!==undefined)out.push(j);
+    }
+    return out;
+  });
+  /* distance from the island edge, so the hills slope down to the beach */
+  var edge=cells.map(function(c,i){return nb[i].length<4?0:-1;});
+  var queue=[];
+  edge.forEach(function(v,i){if(v===0)queue.push(i);});
+  for(var qi=0;qi<queue.length;qi++){
+    var cur=queue[qi];
+    for(var ni=0;ni<nb[cur].length;ni++){
+      var nj=nb[cur][ni];
+      if(edge[nj]<0){edge[nj]=edge[cur]+1;queue.push(nj);}
+    }
+  }
+  function smooth(t){t=Math.max(0,Math.min(1,t));return t*t*(3-2*t);}
+  var far=cells.filter(function(c){return Math.hypot(c[0],c[1])>=5;});
+  var bumps=[];
+  for(var bi=0,nb2=Math.round(8+Q.cells/300);bi<nb2&&far.length;bi++){
+    var bc=far[Math.floor(Math.random()*far.length)];
+    bumps.push({x:bc[0],z:bc[1],s:rnd(2.5,6),a:rnd(0.5,1)});
+  }
+  var field=cells.map(function(c,i){
+    var f=0;
+    bumps.forEach(function(b){
+      var d2=(c[0]-b.x)*(c[0]-b.x)+(c[1]-b.z)*(c[1]-b.z);
+      f+=b.a*Math.exp(-d2/(2*b.s*b.s));
+    });
+    var e=smooth((edge[i]<0?9:edge[i])/5);
+    var sp=smooth((Math.hypot(c[0],c[1])-2)/5);
+    return f*e*sp;
+  });
+  function heights(scale){
+    var h=field.map(function(f){return 1+Math.round(f*scale);});
+    var changed=true;
+    while(changed){
+      changed=false;
+      for(var i=0;i<h.length;i++)for(var k=0;k<nb[i].length;k++){
+        var lim=h[nb[i][k]]+1;
+        if(h[i]>lim){h[i]=lim;changed=true;}
+      }
+    }
+    return h;
+  }
+  function extra(h){var s=0;for(var i=0;i<h.length;i++)s+=h[i]-1;return s;}
+  var lo=0,up=80;
+  for(var it=0;it<22;it++){
+    var mid=(lo+up)/2;
+    if(extra(heights(mid))<Q.hills)lo=mid;else up=mid;
+  }
+  var H=heights(lo);
+  cells.forEach(function(c,i){
+    var h=H[i];
+    for(var y=1;y<h;y++){
+      var top=(y===h-1);
+      addBlock(c[0],y,c[1],top?(y>=6?'stone':'grass'):(y>=4?'stone':'dirt'));
+    }
+  });
+  /* Vegetation: trees on grass first, then flowers, tall grass and a few wild saplings. */
+  var order=cells.map(function(c,i){return i;});
+  shuffle(order);
+  var trees=[];
+  for(var oi=0;oi<order.length&&trees.length<Q.trees;oi++){
+    var ti=order[oi],tc=cells[ti];
+    if(edge[ti]<2||Math.hypot(tc[0],tc[1])<4)continue;
+    var tt=world.get(key(tc[0],H[ti]-1,tc[1]));
+    if(!tt||tt.userData.t!=='grass')continue;
+    var near=false;
+    for(var vi=0;vi<trees.length;vi++){
+      var dxv=trees[vi][0]-tc[0],dzv=trees[vi][1]-tc[1];
+      if(dxv*dxv+dzv*dzv<20){near=true;break;}
+    }
+    if(near)continue;
+    trees.push(tc);
+    buildTree(tc[0],H[ti]-1,tc[1],4+Math.floor(Math.random()*2));
+  }
+  cells.forEach(function(c,i){
+    if(Math.hypot(c[0],c[1])<2)return;
+    var gt=world.get(key(c[0],H[i]-1,c[1]));
+    if(!gt||gt.userData.t!=='grass'||world.has(key(c[0],H[i],c[1])))return;
+    var r=Math.random()/Q.plant;
+    if(r<0.012)addPlant(c[0],H[i],c[1],'sapling',rnd(45,120),false);
+    else if(r<0.045)addPlant(c[0],H[i],c[1],'poppy');
+    else if(r<0.08)addPlant(c[0],H[i],c[1],'daisy');
+    else if(r<0.2)addPlant(c[0],H[i],c[1],'tallgrass');
+  });
+  TYPES.forEach(function(t){inv[t]=0;});
+  inv.wood=10;inv.sapling=3;
+  mined=new Set();placed=0;towerDone=false;grown=false;questDone={};
+  spawn();
+  sel=4;
+  refresh();
+}
+
+/* ---------- player ---------- */
+var R=0.3,H=1.8;
+var P={x:0,y:0.52,z:0,vy:0,yaw:0,pitch:-0.3};
+var sel=4;
+function spawn(){
+  if(!world.has(key(0,0,0)))addBlock(0,0,0,'grass');
+  P.x=0;P.y=0.52;P.z=0;P.vy=0;P.yaw=0;P.pitch=-0.3;
+}
+function hits(x,y,z){
+  var x0=Math.floor(x-R+.5),x1=Math.floor(x+R+.5);
+  var z0=Math.floor(z-R+.5),z1=Math.floor(z+R+.5);
+  var y0=Math.floor(y+.001+.5),y1=Math.floor(y+H-.001+.5);
+  for(var a=x0;a<=x1;a++)for(var b=y0;b<=y1;b++)for(var c=z0;c<=z1;c++){
+    var bm=world.get(key(a,b,c));
+    if(bm&&!bm.userData.plant)return true;
+  }
+  return false;
+}
+var keys={};
+function step(dt){
+  var f=(keys.KeyW||keys.ArrowUp?1:0)-(keys.KeyS||keys.ArrowDown?1:0);
+  var s=(keys.KeyD||keys.ArrowRight?1:0)-(keys.KeyA||keys.ArrowLeft?1:0);
+  var dx=-Math.sin(P.yaw)*f+Math.cos(P.yaw)*s;
+  var dz=-Math.cos(P.yaw)*f-Math.sin(P.yaw)*s;
+  var len=Math.hypot(dx,dz);
+  if(len>0){dx/=len;dz/=len;}
+  var sp=4.3;
+  var nx=P.x+dx*sp*dt;if(!hits(nx,P.y,P.z))P.x=nx;
+  var nz=P.z+dz*sp*dt;if(!hits(P.x,P.y,nz))P.z=nz;
+  P.vy=Math.max(P.vy-26*dt,-20);
+  var ny=P.y+P.vy*dt;
+  var ground=false;
+  if(!hits(P.x,ny,P.z)){P.y=ny;}
+  else{
+    if(P.vy<0){ground=true;P.y=Math.floor(ny+.001+.5)+.5;}
+    P.vy=0;
+  }
+  if(ground&&keys.Space){P.vy=8.6;}
+  if(P.y<-6){
+    toast('You fell into the water! Back to the island.');
+    spawn();
+  }
+}
+
+/* ---------- targeting, mining, placing ---------- */
+var ray=new THREE.Raycaster();ray.far=6;
+var target=null;
+/* Fast voxel ray: walks cell by cell from the eye (works with thousands of blocks). */
+function cast(){
+  var cp=Math.cos(P.pitch);
+  var dx=-Math.sin(P.yaw)*cp,dy=Math.sin(P.pitch),dz=-Math.cos(P.yaw)*cp;
+  var ox=P.x,oy=P.y+1.6,oz=P.z;
+  var ix=Math.floor(ox+.5),iy=Math.floor(oy+.5),iz=Math.floor(oz+.5);
+  var sx=dx>0?1:-1,sy=dy>0?1:-1,sz=dz>0?1:-1;
+  var tdx=dx!==0?Math.abs(1/dx):1e9,tdy=dy!==0?Math.abs(1/dy):1e9,tdz=dz!==0?Math.abs(1/dz):1e9;
+  var tx=dx!==0?(ix+.5*sx-ox)/dx:1e9,ty=dy!==0?(iy+.5*sy-oy)/dy:1e9,tz=dz!==0?(iz+.5*sz-oz)/dz:1e9;
+  var t=0;
+  while(true){
+    var nrm;
+    if(tx<ty&&tx<tz){ix+=sx;t=tx;tx+=tdx;nrm={x:-sx,y:0,z:0};}
+    else if(ty<tz){iy+=sy;t=ty;ty+=tdy;nrm={x:0,y:-sy,z:0};}
+    else{iz+=sz;t=tz;tz+=tdz;nrm={x:0,y:0,z:-sz};}
+    if(t>6)return null;
+    var m=world.get(key(ix,iy,iz));
+    if(m)return {object:m,face:{normal:nrm}};
+  }
+}
+function aim(){
+  target=cast();
+  var tl=$('target');
+  if(target){
+    var u=target.object.userData;
+    outline.position.set(u.x,u.y,u.z);outline.visible=true;
+    tl.textContent=NAMES[u.t];tl.hidden=false;
+  }else{outline.visible=false;tl.hidden=true;}
+}
+function mineBlock(u){
+  var t=u.t,wasPlant=!!u.plant;
+  burst(u.x,u.y,u.z,t,wasPlant?8:18,null);
+  removeBlock(u.x,u.y,u.z);
+  if(t==='sapling'){inv.sapling++;toast('You picked up a sapling.');}
+  else if(wasPlant){toast('You picked: '+NAMES[t]);}
+  else{
+    inv[t]++;mined.add(t);
+    if(t==='leaves'&&Math.random()<0.2){inv.sapling++;toast('You mined: Leaves. A sapling fell out!');}
+    else toast('You mined: '+NAMES[t]);
+  }
+  refresh();
+}
+function act(btn){
+  if(!target)return;
+  var u=target.object.userData;
+  if(btn===0){
+    mineBlock(u);swing.once=0.25;
+  }else if(btn===2){
+    var type=TYPES[sel];
+    if(inv[type]<1){toast('You have no '+NAMES[type].toLowerCase()+' left. Collect some first!');return;}
+    var n=target.face.normal;
+    if(type==='sapling'){
+      if(u.plant||n.y!==1){toast('Plant saplings on the top of a grass or dirt block.');return;}
+      if(u.t!=='grass'&&u.t!=='dirt'){toast('Saplings grow on grass or dirt.');return;}
+      if(world.has(key(u.x,u.y+1,u.z)))return;
+      addPlant(u.x,u.y+1,u.z,'sapling',rnd(20,30),true);
+      inv.sapling--;swing.once=0.25;
+      toast('You planted a sapling. Wait and watch it grow!');
+      refresh();return;
+    }
+    var bx,by,bz;
+    if(u.plant){bx=u.x;by=u.y;bz=u.z;}
+    else{bx=u.x+Math.round(n.x);by=u.y+Math.round(n.y);bz=u.z+Math.round(n.z);}
+    var ex=world.get(key(bx,by,bz));
+    if(ex&&!ex.userData.plant)return;
+    if(by>30){toast('That is too high!');return;}
+    var overlap=P.x+R>bx-.5&&P.x-R<bx+.5&&P.z+R>bz-.5&&P.z-R<bz+.5&&P.y+H>by-.5&&P.y<by+.5;
+    if(overlap){toast('You are in the way. Step back.');return;}
+    if(ex)removeBlock(bx,by,bz);
+    addBlock(bx,by,bz,type);
+    inv[type]--;placed++;swing.once=0.25;
+    var h=1,i=1;
+    while(world.has(key(bx,by+i,bz))){h++;i++;}
+    i=1;while(world.has(key(bx,by-i,bz))){h++;i++;}
+    if(h>=4)towerDone=true;
+    refresh();
+  }
+}
+
+/* ---------- HUD ---------- */
+var hotbar=$('hotbar'),slots={};
+TYPES.forEach(function(t,i){
+  var d=document.createElement('div');d.className='slot';
+  d.innerHTML='<span class="k">'+(i+1)+'</span><img alt="" src="'+ICON[t]+'"><span class="n"></span><span class="w">'+NAMES[t]+'</span>';
+  d.addEventListener('mousedown',function(e){e.stopPropagation();});
+  d.addEventListener('click',function(){sel=i;refresh();});
+  hotbar.appendChild(d);slots[t]=d;
+});
+var QUESTS=[
+  {text:function(){var n=['grass','dirt','sand','stone'].filter(function(t){return mined.has(t);}).length;return 'Mine grass, dirt, sand and stone ('+n+'/4).';},done:function(){return ['grass','dirt','sand','stone'].every(function(t){return mined.has(t);});}},
+  {text:function(){return 'Place 10 blocks ('+Math.min(placed,10)+'/10).';},done:function(){return placed>=10;}},
+  {text:function(){return 'Build a tower 4 blocks high.';},done:function(){return towerDone;}},
+  {text:function(){return 'Chop a log from a tree.';},done:function(){return mined.has('log');}},
+  {text:function(){return 'Plant a sapling and watch it grow into a tree.';},done:function(){return grown;}}
+];
+var toastTimer=0;
+function toast(msg){
+  var t=$('toast');t.textContent=msg;t.classList.remove('off');
+  clearTimeout(toastTimer);toastTimer=setTimeout(function(){t.classList.add('off');},2400);
+}
+function refresh(){
+  TYPES.forEach(function(t,i){
+    var s=slots[t];
+    s.classList.toggle('sel',i===sel);
+    s.classList.toggle('empty',inv[t]<1);
+    s.querySelector('.n').textContent=inv[t];
+  });
+  $('count').textContent='Blocks in the world: '+nBlocks;
+  var ul=$('questList');ul.innerHTML='';
+  QUESTS.forEach(function(q,i){
+    var done=q.done(),li=document.createElement('li');
+    li.className=done?'done':'';
+    li.innerHTML='<span class="box">'+(done?'✓':'')+'</span><span></span>';
+    li.lastChild.textContent=q.text();
+    ul.appendChild(li);
+    if(done&&!questDone[i]){questDone[i]=1;toast('Quest complete!');}
+  });
+}
+
+/* ---------- input ---------- */
+var started=false,locked=false,dragMode=false,dragging=false,moved=0,dragBtn=0;
+var overlay=$('overlay');
+function open(){return !overlay.hidden;}
+function showOverlay(){
+  overlay.hidden=false;holding=false;
+  $('playBtn').textContent=started?'Continue':'Play';
+  try{if(document.pointerLockElement)document.exitPointerLock();}catch(e){}
+}
+function requestLock(){
+  if(dragMode||locked)return;
+  try{
+    var p=canvas.requestPointerLock();
+    if(p&&p.catch)p.catch(function(){dragMode=true;});
+  }catch(e){dragMode=true;}
+}
+function play(){
+  started=true;overlay.hidden=true;
+  keys={};
+  requestLock();
+  canvas.focus();
+}
+$('playBtn').addEventListener('click',play);
+$('newBtn').addEventListener('click',function(){newIsland();toast('A new island! Good luck.');play();});
+$('menuBtn').addEventListener('click',showOverlay);
+document.addEventListener('pointerlockchange',function(){
+  locked=document.pointerLockElement===canvas;
+  if(!locked&&started&&!dragMode&&!open())showOverlay();
+});
+document.addEventListener('pointerlockerror',function(){dragMode=true;});
+
+function look(mx,my){
+  P.yaw-=mx*0.0022;
+  P.pitch=Math.max(-1.5,Math.min(1.5,P.pitch-my*0.0022));
+}
+document.addEventListener('mousemove',function(e){
+  if(open())return;
+  if(locked)look(e.movementX,e.movementY);
+  else if(dragMode&&dragging){moved+=Math.abs(e.movementX)+Math.abs(e.movementY);look(e.movementX,e.movementY);}
+});
+canvas.addEventListener('mousedown',function(e){
+  if(!started||open())return;
+  if(locked){if(e.button===0)holding=true;else act(e.button);}
+  else if(dragMode){dragging=true;moved=0;dragBtn=e.button;}
+  else requestLock();
+});
+window.addEventListener('mouseup',function(){
+  holding=false;
+  if(dragging){dragging=false;if(moved<5)act(dragBtn);}
+});
+canvas.addEventListener('contextmenu',function(e){e.preventDefault();});
+canvas.addEventListener('wheel',function(e){
+  e.preventDefault();
+  sel=(sel+(e.deltaY>0?1:-1)+TYPES.length)%TYPES.length;refresh();
+},{passive:false});
+window.addEventListener('keydown',function(e){
+  if(open())return;
+  if(e.code==='Space'||e.code.indexOf('Arrow')===0)e.preventDefault();
+  keys[e.code]=true;
+  var d=parseInt(e.key,10);
+  if(d>=1&&d<=TYPES.length){sel=d-1;refresh();}
+  if(e.code==='KeyR'&&e.shiftKey){newIsland();toast('A new island! Good luck.');}
+});
+window.addEventListener('keyup',function(e){keys[e.code]=false;});
+window.addEventListener('blur',function(){keys={};holding=false;});
+
+function resize(){
+  var w=window.innerWidth,h=window.innerHeight;
+  renderer.setSize(w,h,false);
+  camera.aspect=w/h;camera.updateProjectionMatrix();
+}
+window.addEventListener('resize',resize);resize();
+
+/* ---------- digging and cutting animation ---------- */
+scene.add(camera);
+var holding=false,mining={key:'',p:0,t:0},swing={once:0,phase:0,sw:0,bob:0};
+/* seconds needed to mine each block with the hand */
+var DUR={grass:0.55,dirt:0.5,sand:0.45,stone:1.6,wood:0.9,log:1.1,leaves:0.25};
+var TOOL={stone:'pick',sand:'shovel',dirt:'shovel',grass:'shovel',wood:'axe',log:'axe',leaves:'axe'};
+
+/* cracks that grow on the block while you mine it */
+var crackTex=[];
+(function(){
+  var walkers=[],pts=[];
+  for(var w=0;w<6;w++)walkers.push({x:8,y:8,a:w*Math.PI/3+rnd(-0.4,0.4)});
+  for(var step=0;step<16;step++){
+    walkers.forEach(function(k){
+      k.a+=rnd(-0.7,0.7);
+      k.x=Math.max(0,Math.min(15,k.x+Math.cos(k.a)*1.1));
+      k.y=Math.max(0,Math.min(15,k.y+Math.sin(k.a)*1.1));
+      pts.push([Math.round(k.x),Math.round(k.y)]);
+    });
+  }
+  for(var n=1;n<=10;n++){
+    var cv=document.createElement('canvas');cv.width=16;cv.height=16;
+    var g=cv.getContext('2d');g.fillStyle='rgba(0,0,0,0.78)';
+    var upto=Math.floor(pts.length*n/10);
+    for(var i=0;i<upto;i++)g.fillRect(pts[i][0],pts[i][1],1,1);
+    var t=new THREE.CanvasTexture(cv);t.magFilter=THREE.NearestFilter;t.minFilter=THREE.NearestFilter;
+    crackTex.push(t);
+  }
+})();
+var crack=new THREE.Mesh(new THREE.BoxGeometry(1.008,1.008,1.008),new THREE.MeshBasicMaterial({map:crackTex[0],transparent:true,depthWrite:false}));
+crack.visible=false;crack.renderOrder=2;scene.add(crack);
+
+/* flying chips of the block */
+var pGeo=new THREE.BoxGeometry(0.11,0.11,0.11),pMats={},parts=[];
+var PCOL={grass:0x5fae3b,dirt:0x86603f,sand:0xdfcf8a,stone:0x84888d,wood:0xb98a4e,log:0x6a4d2f,leaves:0x34802d,sapling:0x4a9a3a,poppy:0xcc3333,daisy:0xf0f0e6,tallgrass:0x50a03c};
+function burst(x,y,z,t,n,face){
+  var mat=pMats[t]||(pMats[t]=new THREE.MeshBasicMaterial({color:PCOL[t]||0x999999}));
+  for(var i=0;i<n&&parts.length<180;i++){
+    var m=new THREE.Mesh(pGeo,mat);
+    var fx=face?face.x:0,fy=face?face.y:0,fz=face?face.z:0;
+    m.position.set(x+rnd(-0.3,0.3)+fx*0.5,y+rnd(-0.3,0.3)+fy*0.5,z+rnd(-0.3,0.3)+fz*0.5);
+    m.userData={vx:rnd(-1.5,1.5)+fx*1.6,vy:rnd(1.2,3.4)+fy,vz:rnd(-1.5,1.5)+fz*1.6,life:rnd(0.5,0.9),sp:rnd(-8,8)};
+    scene.add(m);parts.push(m);
+  }
+}
+function updateParticles(dt){
+  for(var i=parts.length-1;i>=0;i--){
+    var m=parts[i],u=m.userData;
+    u.life-=dt;
+    if(u.life<=0){scene.remove(m);parts.splice(i,1);continue;}
+    u.vy-=14*dt;
+    m.position.x+=u.vx*dt;m.position.y+=u.vy*dt;m.position.z+=u.vz*dt;
+    m.rotation.x+=u.sp*dt;m.rotation.y+=u.sp*dt;
+    m.scale.setScalar(Math.min(1,u.life*2.5));
+  }
+}
+function updateMining(dt){
+  var on=started&&!open()&&holding&&locked&&target;
+  if(!on){mining.key='';mining.p=0;crack.visible=false;return;}
+  var u=target.object.userData,k=key(u.x,u.y,u.z);
+  if(k!==mining.key){mining.key=k;mining.p=0;mining.t=0;}
+  var dur=u.plant?0.15:(DUR[u.t]||0.6);
+  mining.p+=dt/dur;mining.t+=dt;
+  if(u.plant)crack.visible=false;
+  else{
+    crack.visible=true;crack.position.set(u.x,u.y,u.z);
+    crack.material.map=crackTex[Math.min(9,Math.floor(mining.p*10))];
+  }
+  if(mining.t>=0.12){mining.t=0;burst(u.x,u.y,u.z,u.t,2,target.face.normal);}
+  if(mining.p>=1){mineBlock(u);mining.key='';mining.p=0;crack.visible=false;}
+}
+
+/* the hand and the tool you see in front of the camera */
+function bx(w,h,d,color,x,y,z){
+  var m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),new THREE.MeshLambertMaterial({color:color,depthTest:false}));
+  m.position.set(x,y,z);m.renderOrder=999;return m;
+}
+var hand=new THREE.Group();
+hand.add(bx(0.17,0.17,0.34,0x3b6fd1,0,0,0.38));
+hand.add(bx(0.15,0.15,0.2,0xd9a06b,0,0,0.12));
+var tools={pick:new THREE.Group(),axe:new THREE.Group(),shovel:new THREE.Group()};
+['pick','axe','shovel'].forEach(function(n){
+  var g=tools[n];
+  g.add(bx(0.05,0.5,0.05,0x7a5a34,0,0.24,0));
+  g.position.set(0,0.06,-0.02);g.rotation.set(-0.55,-0.25,0);
+  hand.add(g);
+});
+tools.pick.add(bx(0.38,0.07,0.08,0x9aa0a6,0,0.5,0));
+tools.pick.add(bx(0.07,0.1,0.08,0x9aa0a6,-0.2,0.46,0));
+tools.pick.add(bx(0.07,0.1,0.08,0x9aa0a6,0.2,0.46,0));
+tools.axe.add(bx(0.2,0.2,0.06,0x9aa0a6,0.11,0.43,0));
+tools.shovel.add(bx(0.15,0.22,0.05,0x9aa0a6,0,0.55,0));
+camera.add(hand);
+hand.position.set(0.42,-0.38,-0.62);
+function showTool(n){for(var k in tools)tools[k].visible=(k===n);}
+showTool('pick');
+function updateHand(dt){
+  hand.visible=started&&!open();
+  if(!hand.visible)return;
+  var mine=holding&&locked&&!!target;
+  var want=0;
+  if(mine){swing.phase+=dt*11;want=Math.max(0,Math.sin(swing.phase));}
+  else{
+    swing.phase=0;
+    if(swing.once>0){swing.once-=dt;want=Math.sin(Math.PI*Math.max(0,1-swing.once/0.25));}
+  }
+  swing.sw+=(want-swing.sw)*Math.min(1,dt*28);
+  if(target){var tn=TOOL[target.object.userData.t];if(tn)showTool(tn);}
+  var moving=(keys.KeyW||keys.KeyA||keys.KeyS||keys.KeyD||keys.ArrowUp||keys.ArrowDown||keys.ArrowLeft||keys.ArrowRight)&&P.vy===0;
+  swing.bob+=moving?dt*9:0;
+  var m=moving?1:0;
+  hand.rotation.set(-0.1-0.95*swing.sw,-0.12,-0.06*swing.sw);
+  hand.position.set(0.42+Math.cos(swing.bob)*0.012*m,-0.38+Math.sin(swing.bob*2)*0.012*m+0.03*swing.sw,-0.62-0.1*swing.sw);
+}
+
+/* ---------- main loop ---------- */
+var last=performance.now();
+function frame(now){
+  var raw=(now-last)/1000,dt=Math.min(raw,1/30);last=now;
+  if(calib)calibTick(raw);
+  else if(started&&!open())perfWatch(raw);
+  if(started&&!open()){step(dt);growSaplings(dt);}
+  camera.position.set(P.x,P.y+1.6,P.z);
+  camera.rotation.set(P.pitch,P.yaw,0,'YXZ');
+  water.position.y=-0.15+Math.sin(now/900)*0.03;
+  for(var i=0;i<clouds.length;i++){var c=clouds[i];c.position.x+=dt*0.6;if(c.position.x>80)c.position.x=-80;}
+  if(started&&!open())aim();else{outline.visible=false;$('target').hidden=true;}
+  updateMining(dt);updateHand(dt);updateParticles(dt);
+  renderer.render(scene,camera);
+  requestAnimationFrame(frame);
+}
+/* ---------- the game reads the computer ---------- */
+function setTier(id){
+  Q=TIERS[id];
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,Q.ratio));
+  resize();
+}
+function guessTier(){
+  var cores=navigator.hardwareConcurrency||4,mem=navigator.deviceMemory||8;
+  var small=Math.min(window.innerWidth,window.innerHeight)<600;
+  if(small)return 'low';
+  if(cores>=8&&mem>=8)return 'high';
+  if(cores>=4)return 'medium';
+  return 'low';
+}
+function setStatus(t){$('qstatus').textContent=t;}
+function markQ(){
+  var bs=document.querySelectorAll('.q');
+  for(var i=0;i<bs.length;i++)bs[i].classList.toggle('on',bs[i].getAttribute('data-q')===tierMode);
+}
+function lockUI(on){
+  $('playBtn').disabled=on;$('newBtn').disabled=on;
+  overlay.classList.toggle('calibrating',on);
+}
+/* Build the island at one tier, then time 40 frames. Slow: go down. Fast: try the next tier up. */
+function startCalib(id,opts){
+  setTier(id);newIsland();
+  calib={id:id,skip:14,n:0,sum:0,noUp:!!(opts&&opts.noUp),prev:opts&&opts.prev};
+  lockUI(true);
+  setStatus('Checking your computer… ('+TIERS[id].name+')');
+}
+function finishCalib(id,fps){
+  calib=null;lockUI(false);
+  setStatus('Quality: '+TIERS[id].name+' · '+nBlocks.toLocaleString()+' blocks'+(fps?' · about '+Math.round(Math.min(fps,999))+' frames per second':''));
+}
+function calibTick(raw){
+  if(raw>0.5)return;
+  if(calib.skip>0){calib.skip--;return;}
+  calib.sum+=raw;calib.n++;
+  if(calib.n<40)return;
+  var c=calib,fps=c.n/c.sum,i=ORDER.indexOf(c.id);
+  if(c.prev&&fps<42){setTier(c.prev);newIsland();finishCalib(c.prev,null);return;}
+  if(fps<42&&i>0){startCalib(ORDER[i-1],{noUp:true});return;}
+  if(!c.noUp&&fps>=56&&i<ORDER.length-1){startCalib(ORDER[i+1],{prev:c.id});return;}
+  finishCalib(c.id,fps);
+}
+/* While playing: if the game stays slow, tell the student how to fix it. */
+function perfWatch(raw){
+  if(raw>0.5)return;
+  slowAcc+=raw;slowN++;
+  if(slowAcc<4)return;
+  var fps=slowN/slowAcc;slowAcc=0;slowN=0;
+  if(fps<22){slowCount++;if(slowCount>=2&&!warned){warned=true;toast('The game is running slowly. Open the Menu and choose a lower Quality.');}}
+  else slowCount=0;
+}
+var qbs=document.querySelectorAll('.q');
+for(var qi2=0;qi2<qbs.length;qi2++){
+  (function(b){
+    b.addEventListener('click',function(){
+      var q=b.getAttribute('data-q');
+      tierMode=q;markQ();
+      if(q==='auto'){startCalib(guessTier());}
+      else{
+        calib=null;lockUI(false);
+        setTier(q);newIsland();
+        setStatus('Quality: '+TIERS[q].name+' · '+nBlocks.toLocaleString()+' blocks (new island)');
+      }
+    });
+  })(qbs[qi2]);
+}
+markQ();
+startCalib(guessTier());
+requestAnimationFrame(frame);
+})();
+</script>
+
+</body></html>
