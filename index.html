@@ -1,5 +1,9 @@
-<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
-<title>Blokz Up!</title>
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Blokz UP!</title>
 <style>
 /* Layout: full-screen 3D view; frosted-glass HUD floats on top (info + quests top, hotbar bottom). */
 :root{
@@ -36,6 +40,8 @@ button{font:inherit;color:var(--ink);cursor:pointer}
 #quests li .box{flex:none;width:16px;height:16px;border:2px solid var(--ink-soft);border-radius:4px;display:grid;place-items:center;font-size:12px;line-height:1;color:#10260a;margin-top:1px}
 #quests li.done{color:var(--ink-soft);text-decoration:line-through}
 #quests li.done .box{background:var(--grass);border-color:var(--grass)}
+#wet{position:fixed;inset:0;pointer-events:none;background:radial-gradient(ellipse at center,rgba(40,130,200,.10),rgba(10,60,120,.38));opacity:0;transition:opacity .2s}
+#wet.on{opacity:1}
 #cross{position:fixed;left:50%;top:50%;width:22px;height:22px;transform:translate(-50%,-50%);pointer-events:none}
 #cross::before,#cross::after{content:"";position:absolute;background:rgba(255,255,255,.9);box-shadow:0 0 0 1px rgba(0,0,0,.45)}
 #cross::before{left:10px;top:2px;width:2px;height:18px}
@@ -69,21 +75,25 @@ kbd{font-family:var(--font-body);font-size:12px;font-weight:700;padding:2px 7px;
 .btn:disabled{opacity:.5;cursor:default}
 #overlay.calibrating{backdrop-filter:none;-webkit-backdrop-filter:none;background:rgba(8,20,32,.72)}
 @media (max-width:560px){#quests{max-width:none;flex:1 1 100%}.slot{width:40px}#hotbar{gap:3px}.slot .w{display:none}}
-@media (prefers-reduced-motion:reduce){#toast{transition:none}}
+@media (prefers-reduced-motion:reduce){#toast,#wet{transition:none}}
 </style>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&family=Space+Grotesk:wght@400;500;700&display=swap">
 
+</head>
+<body>
 <canvas id="view" tabindex="0"></canvas>
+<div id="wet"></div>
 <div id="cross"></div>
 <div id="target" hidden></div>
 
 <div id="top">
   <div class="panel" id="info">
     <div>
-      <h1>Blokz Up!</h1>
+      <h1>Blokz UP!</h1>
       <p id="count"></p>
     </div>
     <button class="btn" id="menuBtn" type="button">Menu</button>
+    <button class="btn sndbtn" type="button">Sound: On</button>
   </div>
   <div class="panel" id="quests">
     <h2>Quests</h2>
@@ -96,15 +106,17 @@ kbd{font-family:var(--font-body);font-size:12px;font-weight:700;padding:2px 7px;
 
 <div id="overlay">
   <div class="card">
-    <h1>Blokz Up!</h1>
-    <p class="lead" id="lead">You wake up on an island. The game checks your computer and builds an island that runs smoothly on it. Climb the hills, walk through the forest, plant saplings, mine blocks and build something new.</p>
+    <h1>Blokz UP!</h1>
+    <p class="lead" id="lead">You wake up on an island. The game checks your computer and builds an island that runs smoothly on it. Climb the hills, walk through the forest, swim in the shallow sea, plant saplings, mine blocks and build something new.</p>
     <dl class="keys">
       <dt><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></dt><dd>Walk</dd>
-      <dt><kbd>Space</kbd></dt><dd>Jump</dd>
+      <dt><kbd>Space</kbd></dt><dd>Jump (in the water: swim up)</dd>
+      <dt><kbd>Shift</kbd></dt><dd>Dive down when you swim</dd>
       <dt><kbd>Mouse</kbd></dt><dd>Look around</dd>
       <dt><kbd>Hold left click</kbd></dt><dd>Mine (dig or chop) a block</dd>
       <dt><kbd>Right click</kbd></dt><dd>Place a block</dd>
       <dt><kbd>1</kbd>–<kbd>8</kbd></dt><dd>Choose a block (or use the mouse wheel)</dd>
+      <dt><kbd>M</kbd></dt><dd>Sound on or off</dd>
       <dt><kbd>Esc</kbd></dt><dd>Pause the game</dd>
     </dl>
     <div class="quality" role="group" aria-label="Quality">
@@ -119,6 +131,7 @@ kbd{font-family:var(--font-body);font-size:12px;font-weight:700;padding:2px 7px;
     <div class="row">
       <button class="btn primary" id="playBtn" disabled type="button">Play</button>
       <button class="btn" id="newBtn" type="button">New island</button>
+      <button class="btn sndbtn" type="button">Sound: On</button>
     </div>
     <p class="hint">Be careful: if you mine the block under your feet, you fall into the water. If the game feels slow, choose a lower Quality. Best on a computer with a mouse.</p>
   </div>
@@ -134,10 +147,10 @@ var NAMES={grass:'Grass',dirt:'Dirt',sand:'Sand',stone:'Stone',wood:'Planks',log
 var $=function(id){return document.getElementById(id);};
 /* Quality tiers: how big the island is and how much grows on it. */
 var TIERS={
-  low:{name:'Low',cells:512,hills:512,trees:14,plant:0.5,ratio:1},
-  medium:{name:'Medium',cells:1024,hills:1024,trees:28,plant:0.8,ratio:1.25},
-  high:{name:'High',cells:2048,hills:2048,trees:46,plant:1,ratio:2},
-  ultra:{name:'Ultra',cells:3072,hills:3072,trees:64,plant:1.1,ratio:2}
+  low:{name:'Low',cells:512,hills:512,trees:14,plant:0.5,ratio:1,sea:6},
+  medium:{name:'Medium',cells:1024,hills:1024,trees:28,plant:0.8,ratio:1.25,sea:7},
+  high:{name:'High',cells:2048,hills:2048,trees:46,plant:1,ratio:2,sea:8},
+  ultra:{name:'Ultra',cells:3072,hills:3072,trees:64,plant:1.1,ratio:2,sea:9}
 };
 var ORDER=['low','medium','high','ultra'];
 var Q=TIERS.high,tierMode='auto',calib=null,warned=false,slowCount=0,slowAcc=0,slowN=0;
@@ -243,8 +256,9 @@ var sun=new THREE.DirectionalLight(0xffffff,0.62);
 sun.position.set(0.6,1,0.35);
 scene.add(sun);
 
-var water=new THREE.Mesh(new THREE.PlaneGeometry(500,500),new THREE.MeshLambertMaterial({color:0x2f84c8,transparent:true,opacity:0.88}));
-water.rotation.x=-Math.PI/2;water.position.y=-0.15;
+var WL=0; /* water level */
+var water=new THREE.Mesh(new THREE.PlaneGeometry(500,500),new THREE.MeshLambertMaterial({color:0x2f84c8,transparent:true,opacity:0.58,side:THREE.DoubleSide,depthWrite:false}));
+water.rotation.x=-Math.PI/2;water.position.y=WL;
 scene.add(water);
 
 var clouds=[];
@@ -268,21 +282,30 @@ outline.visible=false;scene.add(outline);
 
 /* ---------- world ---------- */
 var world=new Map(),saplings=new Set(),nBlocks=0;
+var isl=new Set(),land=new Set(),seaMeshes=[];
+/* isl = island columns, land = island + shallow sea columns (the player cannot leave these) */
+function ikey(x,z){return (x+512)*1024+(z+512);}
+function hash2(x,z){
+  var h=(Math.imul(x,374761393)+Math.imul(z,668265263))|0;
+  h=Math.imul(h^(h>>>13),1274126177);
+  return ((h^(h>>>16))>>>0)/4294967295;
+}
+var ZERO=new THREE.Matrix4().makeScale(0,0,0);
 function key(x,y,z){return x+','+y+','+z;}
 /* A block hides when all 6 neighbours are solid, so thousands of buried blocks cost nothing to draw. */
 function opaque(x,y,z){
-  if(y<0)return true;
+  if(y<-3||(y<0&&isl.has(ikey(x,z))))return true;
   var m=world.get(key(x,y,z));
   return !!m&&!m.userData.plant&&m.userData.t!=='leaves';
 }
 function filled(x,y,z){
-  if(y<0)return true;
+  if(y<-3||(y<0&&isl.has(ikey(x,z))))return true;
   var m=world.get(key(x,y,z));
   return !!m&&!m.userData.plant;
 }
 function updVis(x,y,z){
   var m=world.get(key(x,y,z));
-  if(!m||m.userData.plant)return;
+  if(!m||m.userData.plant||m.inst)return;
   var f=m.userData.t==='leaves'?filled:opaque;
   m.visible=!(f(x+1,y,z)&&f(x-1,y,z)&&f(x,y+1,z)&&f(x,y-1,z)&&f(x,y,z+1)&&f(x,y,z-1));
 }
@@ -311,7 +334,8 @@ function addPlant(x,y,z,t,delay,byPlayer){
 function removeBlock(x,y,z){
   var m=world.get(key(x,y,z));
   if(!m)return null;
-  scene.remove(m);world.delete(key(x,y,z));
+  if(m.inst){m.inst.setMatrixAt(m.idx,ZERO);m.inst.instanceMatrix.needsUpdate=true;}else scene.remove(m);
+  world.delete(key(x,y,z));
   if(m.userData.plant)saplings.delete(m);else nBlocks--;
   updAround(x,y,z);
   var up=world.get(key(x,y+1,z));
@@ -342,7 +366,7 @@ function growSaplings(dt){
     var mine=u.player;
     removeBlock(u.x,u.y,u.z);
     buildTree(u.x,u.y-1,u.z,th);
-    if(mine){grown=true;toast('Your sapling grew into a tree!');refresh();}
+    if(mine){grown=true;sfx('grow');toast('Your sapling grew into a tree!');refresh();}
   });
 }
 
@@ -354,6 +378,8 @@ function shuffle(a){for(var i=a.length-1;i>0;i--){var j=Math.floor(Math.random()
 function newIsland(){
   world.forEach(function(m){scene.remove(m);});
   world.clear();saplings.clear();nBlocks=0;
+  seaMeshes.forEach(function(im){scene.remove(im);if(im.dispose)im.dispose();});seaMeshes.length=0;
+  isl.clear();land.clear();
   warned=false;slowCount=0;slowAcc=0;slowN=0;
   for(var pi=0;pi<parts.length;pi++)scene.remove(parts[pi]);
   parts.length=0;mining.key='';mining.p=0;crack.visible=false;
@@ -368,6 +394,7 @@ function newIsland(){
   var weights=['grass','grass','grass','grass','grass','sand','sand','sand','dirt','dirt','stone','stone'];
   while(list.length<Q.cells-1)list.push(weights[Math.floor(Math.random()*weights.length)]);
   shuffle(list);
+  cells.forEach(function(c){var kk=ikey(c[0],c[1]);isl.add(kk);land.add(kk);});
   var ht={};
   cells.forEach(function(c,i){addBlock(c[0],0,c[1],i===0?'grass':list[i-1]);ht[c[0]+','+c[1]]=1;});
   /* Terrain: smooth hills. Heights come from soft round bumps, so every slope rises gradually. */
@@ -463,33 +490,89 @@ function newIsland(){
     else if(r<0.08)addPlant(c[0],H[i],c[1],'daisy');
     else if(r<0.2)addPlant(c[0],H[i],c[1],'tallgrass');
   });
+  /* Shallow sea: a sandy sea floor around the island (and in any lake inside it).
+     Near the beach the water is knee deep (wade). Further out it is 1.5 blocks deep (swim). */
+  var RS=Q.sea,sd=new Map();
+  cells.forEach(function(c,i){
+    if(nb[i].length>=4)return;
+    for(var ox=-RS;ox<=RS;ox++)for(var oz=-RS;oz<=RS;oz++){
+      var d2=ox*ox+oz*oz;
+      if(d2>RS*RS)continue;
+      var kk=ikey(c[0]+ox,c[1]+oz);
+      if(isl.has(kk))continue;
+      var od=sd.get(kk);
+      if(od===undefined||d2<od)sd.set(kk,d2);
+    }
+  });
+  var groups={sand:[],dirt:[],stone:[]};
+  sd.forEach(function(d2,kk){
+    var sx=Math.floor(kk/1024)-512,sz=(kk%1024)-512;
+    var dd=Math.sqrt(d2)+(hash2(sx,sz)-0.5)*1.6,h2=hash2(sz+17,sx-9);
+    var lvl=dd>3.2?-2:-1,t;
+    if(lvl===-1)t=h2<0.15?'dirt':'sand';
+    else t=h2<0.3?'stone':'sand';
+    groups[t].push([sx,lvl,sz]);
+    land.add(kk);
+  });
+  var dummy=new THREE.Object3D();
+  ['sand','dirt','stone'].forEach(function(t){
+    var g=groups[t];
+    if(!g.length)return;
+    var im=new THREE.InstancedMesh(geo,MAT[t],g.length);
+    im.frustumCulled=false;
+    g.forEach(function(q,i){
+      dummy.position.set(q[0],q[1],q[2]);dummy.updateMatrix();
+      im.setMatrixAt(i,dummy.matrix);
+      world.set(key(q[0],q[1],q[2]),{userData:{x:q[0],y:q[1],z:q[2],t:t},inst:im,idx:i,visible:true});
+    });
+    im.instanceMatrix.needsUpdate=true;
+    scene.add(im);seaMeshes.push(im);nBlocks+=g.length;
+  });
   TYPES.forEach(function(t){inv[t]=0;});
   inv.wood=10;inv.sapling=3;
   mined=new Set();placed=0;towerDone=false;grown=false;questDone={};
+  swam=false;swimming=false;wasWet=false;BH=1.8;EYE=1.6;
   spawn();
   sel=4;
   refresh();
 }
 
 /* ---------- player ---------- */
-var R=0.3,H=1.8;
+var R=0.3,H=1.8,BH=1.8,EYE=1.6; /* BH and EYE shrink while swimming */
 var P={x:0,y:0.52,z:0,vy:0,yaw:0,pitch:-0.3};
 var sel=4;
 function spawn(){
   if(!world.has(key(0,0,0)))addBlock(0,0,0,'grass');
   P.x=0;P.y=0.52;P.z=0;P.vy=0;P.yaw=0;P.pitch=-0.3;
+  splashed=false;swimming=false;BH=H;EYE=1.6;
 }
 function hits(x,y,z){
   var x0=Math.floor(x-R+.5),x1=Math.floor(x+R+.5);
   var z0=Math.floor(z-R+.5),z1=Math.floor(z+R+.5);
-  var y0=Math.floor(y+.001+.5),y1=Math.floor(y+H-.001+.5);
-  for(var a=x0;a<=x1;a++)for(var b=y0;b<=y1;b++)for(var c=z0;c<=z1;c++){
-    var bm=world.get(key(a,b,c));
-    if(bm&&!bm.userData.plant)return true;
+  var y0=Math.floor(y+.001+.5),y1=Math.floor(y+BH-.001+.5);
+  for(var a=x0;a<=x1;a++)for(var c=z0;c<=z1;c++){
+    if(!land.has(ikey(a,c)))return true;
+    for(var b=y0;b<=y1;b++){
+      var bm=world.get(key(a,b,c));
+      if(bm&&!bm.userData.plant)return true;
+    }
   }
   return false;
 }
-var keys={};
+var keys={},swimming=false,wasWet=false,swam=false,edgeT=0,strokeT=0,bubbleT=2;
+/* top of the block under the player's feet (the sea floor in the water) */
+function supportTop(){
+  var rx=Math.round(P.x),rz=Math.round(P.z),y0=Math.floor(P.y-0.5+0.001);
+  for(var yy=y0;yy>=y0-4;yy--){
+    var m=world.get(key(rx,yy,rz));
+    if(m&&!m.userData.plant)return yy+0.5;
+  }
+  return -99;
+}
+function edgeHint(){
+  var n=performance.now();
+  if(n-edgeT>3500){edgeT=n;toast('The sea is too wild here. Turn back to the island!');}
+}
 function step(dt){
   var f=(keys.KeyW||keys.ArrowUp?1:0)-(keys.KeyS||keys.ArrowDown?1:0);
   var s=(keys.KeyD||keys.ArrowRight?1:0)-(keys.KeyA||keys.ArrowLeft?1:0);
@@ -497,18 +580,51 @@ function step(dt){
   var dz=-Math.cos(P.yaw)*f-Math.sin(P.yaw)*s;
   var len=Math.hypot(dx,dz);
   if(len>0){dx/=len;dz/=len;}
-  var sp=4.3;
-  var nx=P.x+dx*sp*dt;if(!hits(nx,P.y,P.z))P.x=nx;
-  var nz=P.z+dz*sp*dt;if(!hits(P.x,P.y,nz))P.z=nz;
-  P.vy=Math.max(P.vy-26*dt,-20);
+  /* water depth at the feet: wading below 1 block, swimming from 1 block down */
+  var dW=WL-P.y,vyIn=P.vy;
+  var wet=dW>0.05;
+  var wantSwim=wet&&(WL-supportTop())>=1.0;
+  if(wantSwim&&!swimming){swimming=true;BH=0.8;}
+  else if(!wantSwim&&swimming){
+    BH=H;
+    if(hits(P.x,P.y,P.z))BH=0.8;else swimming=false;
+  }
+  var sp=swimming?2.5:(wet?3.2:4.3);
+  var nx=P.x+dx*sp*dt;
+  if(!hits(nx,P.y,P.z))P.x=nx;
+  else if(len>0&&!land.has(ikey(Math.round(nx),Math.round(P.z))))edgeHint();
+  var nz=P.z+dz*sp*dt;
+  if(!hits(P.x,P.y,nz))P.z=nz;
+  else if(len>0&&!land.has(ikey(Math.round(P.x),Math.round(nz))))edgeHint();
+  var up=keys.Space,down=keys.ShiftLeft||keys.ShiftRight||keys.KeyC;
+  if(swimming){
+    /* float at the surface; Space swims up, Shift dives */
+    var ty=(WL-0.48-P.y)*3;
+    if(down)ty=-2.4;else if(up&&P.y<WL-0.4)ty=2.8;
+    ty=Math.max(-2.4,Math.min(2.8,ty));
+    P.vy+=(ty-P.vy)*Math.min(1,dt*7);
+  }else{
+    P.vy=Math.max(P.vy-(wet?20:26)*dt,-20);
+  }
   var ny=P.y+P.vy*dt;
   var ground=false;
   if(!hits(P.x,ny,P.z)){P.y=ny;}
   else{
+    var impact=P.vy;
     if(P.vy<0){ground=true;P.y=Math.floor(ny+.001+.5)+.5;}
     P.vy=0;
+    if(ground&&impact<-9&&!wet)sfx('land',groundType());
   }
-  if(ground&&keys.Space){P.vy=8.6;}
+  if(ground&&up&&!swimming){P.vy=8.6;}
+  EYE+=((swimming?0.6:1.6)-EYE)*Math.min(1,dt*8);
+  var nowWet=WL-P.y>0.05;
+  if(nowWet&&!wasWet)sfx(vyIn<-5?'splash':'wadein');
+  wasWet=nowWet;
+  if(swimming&&!swam){swam=true;refresh();}
+  if(ground&&len>0&&!swimming){stepT-=dt;if(stepT<=0){stepT=nowWet?0.45:0.38;sfx(nowWet?'wade':'step',groundType());}}
+  else if(!ground)stepT=0.12;
+  if(swimming&&len>0){strokeT-=dt;if(strokeT<=0){strokeT=0.75;sfx('stroke');}}
+  if(P.y+EYE<WL){bubbleT-=dt;if(bubbleT<=0){bubbleT=1.5+Math.random()*2;sfx('bubble');}}
   if(P.y<-6){
     toast('You fell into the water! Back to the island.');
     spawn();
@@ -522,7 +638,7 @@ var target=null;
 function cast(){
   var cp=Math.cos(P.pitch);
   var dx=-Math.sin(P.yaw)*cp,dy=Math.sin(P.pitch),dz=-Math.cos(P.yaw)*cp;
-  var ox=P.x,oy=P.y+1.6,oz=P.z;
+  var ox=P.x,oy=P.y+EYE,oz=P.z;
   var ix=Math.floor(ox+.5),iy=Math.floor(oy+.5),iz=Math.floor(oz+.5);
   var sx=dx>0?1:-1,sy=dy>0?1:-1,sz=dz>0?1:-1;
   var tdx=dx!==0?Math.abs(1/dx):1e9,tdy=dy!==0?Math.abs(1/dy):1e9,tdz=dz!==0?Math.abs(1/dz):1e9;
@@ -550,6 +666,7 @@ function aim(){
 function mineBlock(u){
   var t=u.t,wasPlant=!!u.plant;
   burst(u.x,u.y,u.z,t,wasPlant?8:18,null);
+  sfx('break',t);
   removeBlock(u.x,u.y,u.z);
   if(t==='sapling'){inv.sapling++;toast('You picked up a sapling.');}
   else if(wasPlant){toast('You picked: '+NAMES[t]);}
@@ -574,7 +691,7 @@ function act(btn){
       if(u.t!=='grass'&&u.t!=='dirt'){toast('Saplings grow on grass or dirt.');return;}
       if(world.has(key(u.x,u.y+1,u.z)))return;
       addPlant(u.x,u.y+1,u.z,'sapling',rnd(20,30),true);
-      inv.sapling--;swing.once=0.25;
+      inv.sapling--;swing.once=0.25;sfx('plant');
       toast('You planted a sapling. Wait and watch it grow!');
       refresh();return;
     }
@@ -584,11 +701,11 @@ function act(btn){
     var ex=world.get(key(bx,by,bz));
     if(ex&&!ex.userData.plant)return;
     if(by>30){toast('That is too high!');return;}
-    var overlap=P.x+R>bx-.5&&P.x-R<bx+.5&&P.z+R>bz-.5&&P.z-R<bz+.5&&P.y+H>by-.5&&P.y<by+.5;
+    var overlap=P.x+R>bx-.5&&P.x-R<bx+.5&&P.z+R>bz-.5&&P.z-R<bz+.5&&P.y+BH>by-.5&&P.y<by+.5;
     if(overlap){toast('You are in the way. Step back.');return;}
     if(ex)removeBlock(bx,by,bz);
     addBlock(bx,by,bz,type);
-    inv[type]--;placed++;swing.once=0.25;
+    inv[type]--;placed++;swing.once=0.25;sfx('place',type);
     var h=1,i=1;
     while(world.has(key(bx,by+i,bz))){h++;i++;}
     i=1;while(world.has(key(bx,by-i,bz))){h++;i++;}
@@ -611,7 +728,8 @@ var QUESTS=[
   {text:function(){return 'Place 10 blocks ('+Math.min(placed,10)+'/10).';},done:function(){return placed>=10;}},
   {text:function(){return 'Build a tower 4 blocks high.';},done:function(){return towerDone;}},
   {text:function(){return 'Chop a log from a tree.';},done:function(){return mined.has('log');}},
-  {text:function(){return 'Plant a sapling and watch it grow into a tree.';},done:function(){return grown;}}
+  {text:function(){return 'Plant a sapling and watch it grow into a tree.';},done:function(){return grown;}},
+  {text:function(){return 'Swim in the sea (Space = up, Shift = down).';},done:function(){return swam;}}
 ];
 var toastTimer=0;
 function toast(msg){
@@ -633,7 +751,7 @@ function refresh(){
     li.innerHTML='<span class="box">'+(done?'✓':'')+'</span><span></span>';
     li.lastChild.textContent=q.text();
     ul.appendChild(li);
-    if(done&&!questDone[i]){questDone[i]=1;toast('Quest complete!');}
+    if(done&&!questDone[i]){questDone[i]=1;toast('Quest complete!');sfx('quest');}
   });
 }
 
@@ -654,6 +772,7 @@ function requestLock(){
   }catch(e){dragMode=true;}
 }
 function play(){
+  audioInit();
   started=true;overlay.hidden=true;
   keys={};
   requestLock();
@@ -698,7 +817,7 @@ window.addEventListener('keydown',function(e){
   keys[e.code]=true;
   var d=parseInt(e.key,10);
   if(d>=1&&d<=TYPES.length){sel=d-1;refresh();}
-  if(e.code==='KeyR'&&e.shiftKey){newIsland();toast('A new island! Good luck.');}
+  if(e.code==='KeyM'){toggleSound();toast(muted?'Sound off.':'Sound on.');}
 });
 window.addEventListener('keyup',function(e){keys[e.code]=false;});
 window.addEventListener('blur',function(){keys={};holding=false;});
@@ -710,9 +829,132 @@ function resize(){
 }
 window.addEventListener('resize',resize);resize();
 
+/* ---------- sound (made in code with the Web Audio API) ---------- */
+var AC=null,master=null,lp=null,noiseBuf=null,muted=false,stepT=0,splashed=false;
+try{muted=localStorage.getItem('bi-muted')==='1';}catch(e){}
+function audioInit(){
+  if(AC){if(AC.state==='suspended'){try{AC.resume();}catch(e){}}return;}
+  try{
+    var C=window.AudioContext||window.webkitAudioContext;
+    if(!C)return;
+    AC=new C();
+    master=AC.createGain();master.gain.value=muted?0:0.7;
+    lp=AC.createBiquadFilter();lp.type='lowpass';lp.frequency.value=20000;
+    master.connect(lp);lp.connect(AC.destination);
+    if(under)audioMuffle(true);
+    noiseBuf=AC.createBuffer(1,AC.sampleRate,AC.sampleRate);
+    var d=noiseBuf.getChannelData(0);
+    for(var i=0;i<d.length;i++)d[i]=Math.random()*2-1;
+  }catch(e){AC=null;}
+}
+/* under the water everything sounds muffled */
+function audioMuffle(b){
+  if(!AC||!lp)return;
+  try{lp.frequency.setTargetAtTime(b?550:20000,AC.currentTime,0.04);}catch(e){}
+}
+function envl(g,t0,vol,dur){
+  g.gain.setValueAtTime(0.0001,t0);
+  g.gain.exponentialRampToValueAtTime(Math.max(vol,0.0002),t0+0.008);
+  g.gain.exponentialRampToValueAtTime(0.0001,t0+dur);
+}
+function nz(dur,type,f0,f1,q,vol,delay){
+  var t0=AC.currentTime+(delay||0);
+  var src=AC.createBufferSource();src.buffer=noiseBuf;
+  src.playbackRate.value=0.8+Math.random()*0.4;
+  var f=AC.createBiquadFilter();f.type=type;f.Q.value=q;
+  f.frequency.setValueAtTime(f0,t0);
+  if(f1)f.frequency.exponentialRampToValueAtTime(f1,t0+dur);
+  var g=AC.createGain();envl(g,t0,vol,dur);
+  src.connect(f);f.connect(g);g.connect(master);
+  src.start(t0,Math.random()*0.4,dur+0.05);
+}
+function tone(f0,f1,dur,vol,type,delay){
+  var t0=AC.currentTime+(delay||0);
+  var o=AC.createOscillator();o.type=type||'sine';
+  o.frequency.setValueAtTime(f0,t0);
+  if(f1!==f0)o.frequency.exponentialRampToValueAtTime(f1,t0+dur);
+  var g=AC.createGain();envl(g,t0,vol,dur);
+  o.connect(g);g.connect(master);
+  o.start(t0);o.stop(t0+dur+0.05);
+}
+function kind(t){
+  if(t==='stone')return 'stone';
+  if(t==='wood'||t==='log')return 'wood';
+  if(t==='sand')return 'sand';
+  if(t==='leaves'||t==='sapling'||t==='poppy'||t==='daisy'||t==='tallgrass')return 'leaf';
+  return 'earth';
+}
+function sfx(name,t){
+  if(!AC||muted)return;
+  try{
+    var k=kind(t),r=0.9+Math.random()*0.2;
+    if(name==='hit'){
+      if(k==='stone'){nz(0.08,'bandpass',2800*r,1800,3,0.55);tone(1100*r,600,0.05,0.12,'square');}
+      else if(k==='wood'){tone(200*r,95,0.1,0.55,'triangle');nz(0.05,'lowpass',1200,600,1,0.25);}
+      else if(k==='sand'){nz(0.16,'bandpass',2000*r,1200,0.8,0.3);}
+      else if(k==='leaf'){nz(0.14,'highpass',3800*r,2500,0.7,0.28);}
+      else{nz(0.12,'lowpass',620*r,260,0.8,0.8);}
+    }else if(name==='break'){
+      if(k==='stone'){nz(0.22,'bandpass',1600*r,700,1.2,0.7);nz(0.1,'bandpass',3200,2000,3,0.4,0.02);tone(500,180,0.14,0.18,'square');}
+      else if(k==='wood'){tone(150*r,60,0.18,0.7,'triangle');nz(0.12,'bandpass',900,500,1,0.5);tone(260,120,0.1,0.3,'triangle',0.05);}
+      else if(k==='sand'){nz(0.3,'bandpass',1800*r,900,0.7,0.45);}
+      else if(k==='leaf'){nz(0.25,'highpass',3000*r,1800,0.6,0.4);}
+      else{nz(0.2,'lowpass',700*r,200,0.8,0.9);nz(0.08,'lowpass',1400,500,1,0.4,0.03);}
+    }else if(name==='place'){
+      tone(170*r,70,0.12,0.5,'sine');
+      if(k==='stone')nz(0.06,'bandpass',2400,1500,2,0.3);
+      else if(k==='leaf')nz(0.12,'highpass',3500,2200,0.7,0.25);
+      else nz(0.06,'lowpass',500,250,0.8,0.4);
+    }else if(name==='step'){
+      if(k==='stone')nz(0.05,'bandpass',2200*r,1500,2,0.25);
+      else if(k==='wood')tone(160*r,100,0.07,0.28,'triangle');
+      else if(k==='sand')nz(0.09,'bandpass',1700*r,1100,0.8,0.18);
+      else nz(0.07,'lowpass',520*r,250,0.8,0.35);
+    }else if(name==='land'){
+      nz(0.18,'lowpass',800*r,200,0.8,0.8);tone(110*r,50,0.15,0.4,'sine');
+    }else if(name==='plant'){
+      tone(320,640,0.1,0.25,'sine');nz(0.1,'lowpass',500,250,0.8,0.4);
+    }else if(name==='grow'){
+      nz(0.4,'highpass',3200,2000,0.6,0.3);
+      [392,494,587].forEach(function(f,i){tone(f,f,0.35,0.2,'sine',i*0.12);});
+    }else if(name==='quest'){
+      [523,659,784,1047,1319].forEach(function(f,i){tone(f,f,0.26,0.16,'triangle',i*0.08);});
+    }else if(name==='splash'){
+      nz(0.7,'lowpass',1800,300,0.7,0.9);nz(0.4,'bandpass',900,400,1,0.4,0.08);
+    }else if(name==='wadein'){
+      nz(0.3,'lowpass',1500,500,0.7,0.5);nz(0.15,'bandpass',1200,700,1,0.2,0.04);
+    }else if(name==='wade'){
+      nz(0.12,'lowpass',950*r,400,0.7,0.35);nz(0.08,'bandpass',1500,900,1,0.12,0.03);
+    }else if(name==='stroke'){
+      nz(0.38,'lowpass',1100*r,300,0.6,0.32);
+    }else if(name==='bubble'){
+      var bf=450+Math.random()*350;
+      tone(bf,bf*2.2,0.12,0.12,'sine');tone(bf*1.3,bf*2.8,0.1,0.07,'sine',0.09);
+    }
+  }catch(e){}
+}
+function groundType(){
+  var m=world.get(key(Math.round(P.x),Math.round(P.y-0.5),Math.round(P.z)));
+  return m&&!m.userData.plant?m.userData.t:'grass';
+}
+var sndBtns=document.querySelectorAll('.sndbtn');
+function setMute(m){
+  muted=m;
+  if(master)master.gain.value=m?0:0.7;
+  for(var i=0;i<sndBtns.length;i++)sndBtns[i].textContent='Sound: '+(m?'Off':'On');
+  try{localStorage.setItem('bi-muted',m?'1':'0');}catch(e){}
+}
+function toggleSound(){
+  audioInit();setMute(!muted);
+  if(!muted)sfx('place','stone');
+}
+for(var sbi=0;sbi<sndBtns.length;sbi++)sndBtns[sbi].addEventListener('click',toggleSound);
+setMute(muted);
+
 /* ---------- digging and cutting animation ---------- */
 scene.add(camera);
 var holding=false,mining={key:'',p:0,t:0},swing={once:0,phase:0,sw:0,bob:0};
+mining.s=0;
 /* seconds needed to mine each block with the hand */
 var DUR={grass:0.55,dirt:0.5,sand:0.45,stone:1.6,wood:0.9,log:1.1,leaves:0.25};
 var TOOL={stone:'pick',sand:'shovel',dirt:'shovel',grass:'shovel',wood:'axe',log:'axe',leaves:'axe'};
@@ -770,7 +1012,7 @@ function updateMining(dt){
   var on=started&&!open()&&holding&&locked&&target;
   if(!on){mining.key='';mining.p=0;crack.visible=false;return;}
   var u=target.object.userData,k=key(u.x,u.y,u.z);
-  if(k!==mining.key){mining.key=k;mining.p=0;mining.t=0;}
+  if(k!==mining.key){mining.key=k;mining.p=0;mining.t=0;mining.s=0;}
   var dur=u.plant?0.15:(DUR[u.t]||0.6);
   mining.p+=dt/dur;mining.t+=dt;
   if(u.plant)crack.visible=false;
@@ -779,6 +1021,8 @@ function updateMining(dt){
     crack.material.map=crackTex[Math.min(9,Math.floor(mining.p*10))];
   }
   if(mining.t>=0.12){mining.t=0;burst(u.x,u.y,u.z,u.t,2,target.face.normal);}
+  mining.s-=dt;
+  if(mining.s<=0){sfx('hit',u.t);mining.s=0.26;}
   if(mining.p>=1){mineBlock(u);mining.key='';mining.p=0;crack.visible=false;}
 }
 
@@ -819,10 +1063,21 @@ function updateHand(dt){
   swing.sw+=(want-swing.sw)*Math.min(1,dt*28);
   if(target){var tn=TOOL[target.object.userData.t];if(tn)showTool(tn);}
   var moving=(keys.KeyW||keys.KeyA||keys.KeyS||keys.KeyD||keys.ArrowUp||keys.ArrowDown||keys.ArrowLeft||keys.ArrowRight)&&P.vy===0;
-  swing.bob+=moving?dt*9:0;
-  var m=moving?1:0;
+  swing.bob+=(moving||swimming)?dt*(swimming?5:9):0;
+  var m=(moving||swimming)?(swimming?2.5:1):0;
   hand.rotation.set(-0.1-0.95*swing.sw,-0.12,-0.06*swing.sw);
   hand.position.set(0.42+Math.cos(swing.bob)*0.012*m,-0.38+Math.sin(swing.bob*2)*0.012*m+0.03*swing.sw,-0.62-0.1*swing.sw);
+}
+
+/* under the water: blue fog, blue tint and muffled sound */
+var under=false;
+function setUnder(b){
+  if(b===under)return;
+  under=b;
+  if(b){scene.fog.color.set(0x1b6aa5);scene.fog.near=0.4;scene.fog.far=16;scene.background.set(0x1b6aa5);}
+  else{scene.fog.color.set(0x9bd3f5);scene.fog.near=28;scene.fog.far=95;scene.background.set(0x8ec9f0);}
+  $('wet').classList.toggle('on',b);
+  audioMuffle(b);
 }
 
 /* ---------- main loop ---------- */
@@ -832,9 +1087,10 @@ function frame(now){
   if(calib)calibTick(raw);
   else if(started&&!open())perfWatch(raw);
   if(started&&!open()){step(dt);growSaplings(dt);}
-  camera.position.set(P.x,P.y+1.6,P.z);
+  camera.position.set(P.x,P.y+EYE,P.z);
   camera.rotation.set(P.pitch,P.yaw,0,'YXZ');
-  water.position.y=-0.15+Math.sin(now/900)*0.03;
+  water.position.y=WL+Math.sin(now/900)*0.02;
+  setUnder(P.y+EYE<WL-0.03);
   for(var i=0;i<clouds.length;i++){var c=clouds[i];c.position.x+=dt*0.6;if(c.position.x>80)c.position.x=-80;}
   if(started&&!open())aim();else{outline.visible=false;$('target').hidden=true;}
   updateMining(dt);updateHand(dt);updateParticles(dt);
@@ -916,4 +1172,5 @@ requestAnimationFrame(frame);
 })();
 </script>
 
-</body></html>
+</body>
+</html>
